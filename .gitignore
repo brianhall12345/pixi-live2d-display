@@ -5,8 +5,6 @@ core
 /build
 /*.build
 /lib
-/dist
-/types
 /site
 
 .DS_Store
