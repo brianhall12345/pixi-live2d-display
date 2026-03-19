@@ -108,11 +108,7 @@ export class Cubism5InternalModel extends InternalModel {
         this.breath.setParameters(breathParams);
 
         this.renderer.initialize(this.coreModel);
-        // Default to false for transparent canvas compatibility.
-        // Premultiplied alpha causes opaque white backgrounds when the
-        // canvas has backgroundAlpha: 0. Applications that need premultiplied
-        // alpha can set it explicitly via internalModel.renderer.setIsPremultipliedAlpha(true).
-        this.renderer.setIsPremultipliedAlpha(false);
+        this.renderer.setIsPremultipliedAlpha(true);
     }
 
     protected getSize(): [number, number] {
@@ -230,57 +226,53 @@ export class Cubism5InternalModel extends InternalModel {
 
         this.emit("afterMotionUpdate");
 
+        // Save params right after motion (matches official SDK sample and
+        // the Cubism 4 plugin). This creates a clean "motion-only" snapshot
+        // that loadParameters() restores at the end of each frame.
+        model.saveParameters();
+
         this.motionManager.expressionManager?.update(model, now);
 
         if (!motionUpdated) {
             this.eyeBlink?.updateParameters(model, dt);
         }
 
-        model.saveParameters();
+        // Focus uses ADD (not SET) so it composes with other effects
+        // rather than overwriting them. Matches the Cubism 4 plugin and
+        // the official SDK sample's drag/focus pattern.
+        this.updateFocus();
 
         // revert the timestamps to be milliseconds
         this.updateNaturalMovements(dt * 1000, now * 1000);
 
-        // TODO: Add lip sync API
-        // if (this.lipSync) {
-        //     const value = 0; // 0 ~ 1
-        //
-        //     for (let i = 0; i < this.lipSyncIds.length; ++i) {
-        //         model.addParameterValueById(this.lipSyncIds[i], value, 0.8);
-        //     }
-        // }
-
         this.physics?.evaluate(model, dt);
         this.pose?.updateParameters(model, dt);
-
-        // Apply focus controller AFTER everything else so it's not overwritten
-        this.updateFocus();
 
         this.emit("beforeModelUpdate");
 
         model.update();
+
+        // Restore saved params for the next frame. Without this, additive
+        // effects (breath, focus, physics output) accumulate frame-over-frame
+        // instead of layering on a clean baseline each frame. This was present
+        // in the Cubism 4 plugin but missing from the Cubism 5 port.
+        model.loadParameters();
     }
 
     updateFocus() {
-        // Skip if any parameter indices are invalid
-        if (this.eyeballXParamIndex < 0 || this.angleXParamIndex < 0) {
-            console.log("Invalid parameter indices, skipping focus update");
-            return;
-        }
-
-        // Apply all focus parameters for complete mouse tracking
-        const eyeX = this.focusController.x;
-        const eyeY = this.focusController.y;
-        const angleX = this.focusController.x * 30;
-        const angleY = this.focusController.y * 30;
-
-        // Apply focus parameters without excessive logging
-        this.coreModel.setParameterValueByIndex(this.eyeballXParamIndex, eyeX);
-        this.coreModel.setParameterValueByIndex(this.eyeballYParamIndex, eyeY);
-        this.coreModel.setParameterValueByIndex(this.angleXParamIndex, angleX);
-        this.coreModel.setParameterValueByIndex(this.angleYParamIndex, angleY);
-        this.coreModel.setParameterValueByIndex(this.angleZParamIndex, this.focusController.x * this.focusController.y * -30);
-        this.coreModel.setParameterValueByIndex(this.bodyAngleXParamIndex, this.focusController.x * 10);
+        // Use addParameterValueById (ADDITIVE) to compose with other effects,
+        // matching the Cubism 4 plugin and official SDK sample behavior.
+        // The old plugin used addParameterValueById; the naari3 port incorrectly
+        // changed to setParameterValueByIndex which overwrites all prior values.
+        this.coreModel.addParameterValueById(this.idParamEyeBallX, this.focusController.x);
+        this.coreModel.addParameterValueById(this.idParamEyeBallY, this.focusController.y);
+        this.coreModel.addParameterValueById(this.idParamAngleX, this.focusController.x * 30);
+        this.coreModel.addParameterValueById(this.idParamAngleY, this.focusController.y * 30);
+        this.coreModel.addParameterValueById(
+            this.idParamAngleZ,
+            this.focusController.x * this.focusController.y * -30,
+        );
+        this.coreModel.addParameterValueById(this.idParamBodyAngleX, this.focusController.x * 10);
     }
 
     updateNaturalMovements(dt: DOMHighResTimeStamp, now: DOMHighResTimeStamp) {

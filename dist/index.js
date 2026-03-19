@@ -2671,7 +2671,24 @@ var __async = (__this, __arguments, generator) => {
         const internalTransform = tempMatrix$1.copyFrom(projectionMatrix).append(worldTransform);
         if (this.internalModel) {
           this.internalModel.updateTransform(internalTransform);
-          this.internalModel.draw(webglRenderer.gl);
+          const gl = webglRenderer.gl;
+          const savedBlend = gl.getParameter(gl.BLEND);
+          const savedDepthTest = gl.getParameter(gl.DEPTH_TEST);
+          const savedStencilTest = gl.getParameter(gl.STENCIL_TEST);
+          const savedScissorTest = gl.getParameter(gl.SCISSOR_TEST);
+          const savedColorMask = gl.getParameter(gl.COLOR_WRITEMASK);
+          const savedFbo = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+          this.internalModel.draw(gl);
+          gl.bindFramebuffer(gl.FRAMEBUFFER, savedFbo);
+          if (savedBlend) gl.enable(gl.BLEND);
+          else gl.disable(gl.BLEND);
+          if (savedDepthTest) gl.enable(gl.DEPTH_TEST);
+          else gl.disable(gl.DEPTH_TEST);
+          if (savedStencilTest) gl.enable(gl.STENCIL_TEST);
+          else gl.disable(gl.STENCIL_TEST);
+          if (savedScissorTest) gl.enable(gl.SCISSOR_TEST);
+          else gl.disable(gl.SCISSOR_TEST);
+          gl.colorMask(savedColorMask[0], savedColorMask[1], savedColorMask[2], savedColorMask[3]);
         }
       } catch (error) {
         console.error("Error in Live2D render callback:", error);
@@ -11392,7 +11409,7 @@ var __async = (__this, __arguments, generator) => {
       breathParams.pushBack(new BreathParameterData(CubismFramework.getIdManager().getId(this.idParamBreath), 0, 0.5, 3.2345, 0.5));
       this.breath.setParameters(breathParams);
       this.renderer.initialize(this.coreModel);
-      this.renderer.setIsPremultipliedAlpha(false);
+      this.renderer.setIsPremultipliedAlpha(true);
     }
     getSize() {
       return [
@@ -11475,33 +11492,29 @@ var __async = (__this, __arguments, generator) => {
       this.emit("beforeMotionUpdate");
       const motionUpdated = this.motionManager.update(this.coreModel, now);
       this.emit("afterMotionUpdate");
+      model.saveParameters();
       (_a = this.motionManager.expressionManager) == null ? void 0 : _a.update(model, now);
       if (!motionUpdated) {
         (_b = this.eyeBlink) == null ? void 0 : _b.updateParameters(model, dt);
       }
-      model.saveParameters();
+      this.updateFocus();
       this.updateNaturalMovements(dt * 1e3, now * 1e3);
       (_c = this.physics) == null ? void 0 : _c.evaluate(model, dt);
       (_d = this.pose) == null ? void 0 : _d.updateParameters(model, dt);
-      this.updateFocus();
       this.emit("beforeModelUpdate");
       model.update();
+      model.loadParameters();
     }
     updateFocus() {
-      if (this.eyeballXParamIndex < 0 || this.angleXParamIndex < 0) {
-        console.log("Invalid parameter indices, skipping focus update");
-        return;
-      }
-      const eyeX = this.focusController.x;
-      const eyeY = this.focusController.y;
-      const angleX = this.focusController.x * 30;
-      const angleY = this.focusController.y * 30;
-      this.coreModel.setParameterValueByIndex(this.eyeballXParamIndex, eyeX);
-      this.coreModel.setParameterValueByIndex(this.eyeballYParamIndex, eyeY);
-      this.coreModel.setParameterValueByIndex(this.angleXParamIndex, angleX);
-      this.coreModel.setParameterValueByIndex(this.angleYParamIndex, angleY);
-      this.coreModel.setParameterValueByIndex(this.angleZParamIndex, this.focusController.x * this.focusController.y * -30);
-      this.coreModel.setParameterValueByIndex(this.bodyAngleXParamIndex, this.focusController.x * 10);
+      this.coreModel.addParameterValueById(this.idParamEyeBallX, this.focusController.x);
+      this.coreModel.addParameterValueById(this.idParamEyeBallY, this.focusController.y);
+      this.coreModel.addParameterValueById(this.idParamAngleX, this.focusController.x * 30);
+      this.coreModel.addParameterValueById(this.idParamAngleY, this.focusController.y * 30);
+      this.coreModel.addParameterValueById(
+        this.idParamAngleZ,
+        this.focusController.x * this.focusController.y * -30
+      );
+      this.coreModel.addParameterValueById(this.idParamBodyAngleX, this.focusController.x * 10);
     }
     updateNaturalMovements(dt, now) {
       var _a;

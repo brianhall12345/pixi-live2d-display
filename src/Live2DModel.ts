@@ -584,7 +584,29 @@ export class Live2DModel<IM extends InternalModel = InternalModel> extends Conta
 
             if (this.internalModel) {
                 this.internalModel.updateTransform(internalTransform);
-                this.internalModel.draw(webglRenderer.gl);
+
+                // Save and restore GL state around the Cubism draw call.
+                // The old PixiJS v7 plugin called renderer.state.reset() before
+                // and after drawing. Without this, the Cubism renderer leaves
+                // GL state (blend mode, depth test, etc.) dirty, which can cause
+                // PixiJS's background clear to not take effect (white background).
+                const gl = webglRenderer.gl;
+                const savedBlend = gl.getParameter(gl.BLEND);
+                const savedDepthTest = gl.getParameter(gl.DEPTH_TEST);
+                const savedStencilTest = gl.getParameter(gl.STENCIL_TEST);
+                const savedScissorTest = gl.getParameter(gl.SCISSOR_TEST);
+                const savedColorMask = gl.getParameter(gl.COLOR_WRITEMASK);
+                const savedFbo = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+
+                this.internalModel.draw(gl);
+
+                // Restore GL state so PixiJS can manage its own rendering
+                gl.bindFramebuffer(gl.FRAMEBUFFER, savedFbo);
+                if (savedBlend) gl.enable(gl.BLEND); else gl.disable(gl.BLEND);
+                if (savedDepthTest) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);
+                if (savedStencilTest) gl.enable(gl.STENCIL_TEST); else gl.disable(gl.STENCIL_TEST);
+                if (savedScissorTest) gl.enable(gl.SCISSOR_TEST); else gl.disable(gl.SCISSOR_TEST);
+                gl.colorMask(savedColorMask[0], savedColorMask[1], savedColorMask[2], savedColorMask[3]);
             }
 
         } catch (error) {
