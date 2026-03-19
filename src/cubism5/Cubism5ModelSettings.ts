@@ -53,32 +53,16 @@ export class Cubism5ModelSettings extends ModelSettings {
         this.moc = json.FileReferences.Moc;
         this.textures = json.FileReferences.Textures;
 
-        // Set optional properties
-        if (json.FileReferences.Physics) {
-            this.physics = json.FileReferences.Physics;
-        }
-        if (json.FileReferences.Pose) {
-            this.pose = json.FileReferences.Pose;
-        }
-
-        if (json.Layout) {
-            this.layout = json.Layout;
-        }
-
-        // Set hitAreas from JSON
-        if (json.HitAreas) {
-            this.hitAreas = json.HitAreas;
-        }
-
-        // Set motions from JSON
-        if (json.FileReferences.Motions) {
-            this.motions = json.FileReferences.Motions;
-        }
-
-        // Set expressions from JSON
-        if (json.FileReferences.Expressions) {
-            this.expressions = json.FileReferences.Expressions;
-        }
+        // Set optional properties — explicitly clear string defaults from
+        // CubismModelSettingJson when the model file omits these fields.
+        // Object.assign copies defaults like pose="Pose", hitAreas="HitAreas"
+        // which the loader would try to fetch as file URLs.
+        this.physics = json.FileReferences.Physics ?? undefined;
+        this.pose = json.FileReferences.Pose ?? undefined;
+        this.layout = json.Layout ?? undefined;
+        this.hitAreas = json.HitAreas ?? undefined;
+        this.motions = json.FileReferences.Motions ?? undefined;
+        this.expressions = json.FileReferences.Expressions ?? undefined;
     }
 
     /**

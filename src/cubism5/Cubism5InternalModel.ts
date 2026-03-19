@@ -108,7 +108,11 @@ export class Cubism5InternalModel extends InternalModel {
         this.breath.setParameters(breathParams);
 
         this.renderer.initialize(this.coreModel);
-        this.renderer.setIsPremultipliedAlpha(true);
+        // Default to false for transparent canvas compatibility.
+        // Premultiplied alpha causes opaque white backgrounds when the
+        // canvas has backgroundAlpha: 0. Applications that need premultiplied
+        // alpha can set it explicitly via internalModel.renderer.setIsPremultipliedAlpha(true).
+        this.renderer.setIsPremultipliedAlpha(false);
     }
 
     protected getSize(): [number, number] {
